@@ -1,0 +1,36 @@
+pkgbase = booru-grabber-bin
+	pkgdesc = Imageboard/booru downloader with powerful file naming, GTK 3 rewrite of Grabber (prebuilt)
+	pkgver = 1.0.0
+	pkgrel = 1
+	url = https://github.com/TheElevatedOne/booru-grabber
+	arch = x86_64
+	license = Apache-2.0
+	depends = gcc-libs
+	depends = glibc
+	depends = glib2
+	depends = gtk3
+	depends = cairo
+	depends = pango
+	depends = gdk-pixbuf2
+	depends = libsoup3
+	depends = libxml2
+	depends = sqlite
+	depends = quickjs-ng
+	depends = gstreamer
+	depends = gst-plugins-base-libs
+	depends = libayatana-appindicator
+	optdepends = gst-plugins-good: WebM (VP8/VP9) video playback
+	optdepends = gst-libav: MP4 (H.264) video playback
+	optdepends = perl-image-exiftool: write metadata into downloaded files
+	optdepends = ffmpeg: WebM to MP4 and ugoira conversion
+	optdepends = imagemagick: image format conversion
+	provides = booru-grabber=1.0.0
+	provides = imgbrd-grabber
+	conflicts = booru-grabber
+	options = !debug
+	options = !strip
+	backup = etc/booru-grabber/settings.ini
+	source_x86_64 = https://github.com/TheElevatedOne/booru-grabber/releases/download/1.0.0/booru-grabber-1.0.0-linux-x86_64.tar.gz
+	sha256sums_x86_64 = SKIP
+
+pkgname = booru-grabber-bin

@@ -1,0 +1,60 @@
+# Maintainer: TheElevatedOne
+
+pkgname=booru-grabber-git
+_pkgname=booru-grabber
+pkgver=1.0.0_r0_g0000000
+pkgrel=1
+pkgdesc='Imageboard/booru downloader with powerful file naming, GTK 3 rewrite of Grabber (git version)'
+arch=('x86_64' 'aarch64')
+url='https://github.com/TheElevatedOne/booru-grabber'
+license=('Apache-2.0')
+depends=('gcc-libs' 'glibc' 'glib2' 'gtk3' 'cairo' 'pango' 'gdk-pixbuf2' 'libsoup3' 'libxml2' 'sqlite'
+         'quickjs-ng' 'gstreamer' 'gst-plugins-base-libs' 'libayatana-appindicator')
+makedepends=('git' 'cmake' 'ninja' 'pkgconf' 'nlohmann-json' 'typescript')
+optdepends=('gst-plugins-good: WebM (VP8/VP9) video playback'
+            'gst-libav: MP4 (H.264) video playback'
+            'perl-image-exiftool: write metadata into downloaded files'
+            'ffmpeg: WebM to MP4 and ugoira conversion'
+            'imagemagick: image format conversion')
+provides=("$_pkgname" 'imgbrd-grabber')
+conflicts=("$_pkgname")
+backup=('etc/booru-grabber/settings.ini')
+source=("$_pkgname::git+$url.git"
+        'lexbor::git+https://github.com/lexbor/lexbor.git')
+sha256sums=('SKIP'
+            'SKIP')
+
+pkgver() {
+  cd "$_pkgname"
+  # Only the rewrite's bare version tags (1.0.0); Grabber's v7.x tags would sort above them
+  if git describe --tags --match '[0-9]*' >/dev/null 2>&1; then
+    git describe --long --tags --abbrev=7 --match '[0-9]*' | sed 's/\([^-]*-g\)/r\1/;s/-/_/g'
+  else
+    printf '1.0.0_r%s_g%s' "$(git rev-list --count HEAD)" "$(git rev-parse --short=7 HEAD)"
+  fi
+}
+
+prepare() {
+  cd "$_pkgname"
+  git submodule init
+  git config submodule.lib/vendor/lexbor.url "$srcdir/lexbor"
+  git -c protocol.file.allow=always submodule update
+}
+
+build() {
+  cmake -B build -S "$_pkgname" -G Ninja \
+    -DCMAKE_BUILD_TYPE=None \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DBOORU_GRABBER_RELOCATABLE=OFF \
+    -DBOORU_GRABBER_FETCH_QUICKJS=OFF \
+    -DBOORU_GRABBER_TESTS=OFF \
+    -Wno-dev
+  cmake --build build
+}
+
+package() {
+  DESTDIR="$pkgdir" cmake --install build
+  cd "$_pkgname"
+  install -Dm644 README.md CHANGELOG.md -t "$pkgdir/usr/share/doc/$_pkgname"
+  install -Dm644 LICENSE NOTICE -t "$pkgdir/usr/share/licenses/$pkgname"
+}

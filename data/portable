@@ -1,0 +1,2 @@
+# The presence of this file next to the booru-grabber binaries switches on portable mode:
+# settings, data and cache are kept in the "profile" folder beside it.

@@ -1,729 +1,138 @@
+# Builds booru-grabber on Arch Linux, runs the unit tests and packages the /usr release tarball and the
+# portable directory. The AppImage is built on Ubuntu 24.04 so it runs on older distributions.
+# Pushing a tag such as 1.0.0 also publishes a GitHub release with these files; the booru-grabber-bin
+# AUR package downloads the tarball. The release notes are the tag's section in CHANGELOG.md.
 name: Build
 
 on:
   push:
-    paths-ignore:
-      - 'docs/**'
-      - '**.md'
-    branches-ignore:
-      - crowdin
-    tags:
-      - 'v*'
+    branches: [master]
+    tags: ["[0-9]*"]
   pull_request:
-    paths-ignore:
-      - 'docs/**'
-      - '**.md'
-    branches-ignore:
-      - crowdin
+  workflow_dispatch:
 
-env:
-  QT_VERSION: 6.11.1
-  QT_MODULES: qtmultimedia qtimageformats qtnetworkauth qtshadertools
-  QT_MODULES_WEBENGINE: qtwebchannel qtpositioning qtwebengine qtwebview qtserialport
-  IS_RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') }}
-  IS_NIGHTLY: ${{ !startsWith(github.ref, 'refs/tags/v') }}
-  CMAKE_BUILD_PARALLEL_LEVEL: 2
-  QSCINTILLA_VERSION: 2.14.1
-  QSCINTILLA_DIR: QScintilla_src-2.14.1
-  ANDROID_NDK_VERSION: 27.2.12479018
+permissions:
+  contents: read
 
 jobs:
-  # Gatekeeper job to skip build for Crowdin PRs
-  gatekeeper:
-    name: Gatekeeper
-    if: startsWith(github.head_ref, 'crowdin') == false
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "OK"
-
-  uncrustify:
-    name: Uncrustify
-    runs-on: ubuntu-latest
-    needs: gatekeeper
-
-    env:
-      UNCRUSTIFY_COMMIT: 8edb7262e855c4271e9e5fc26af93861103e14fa
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          submodules: recursive
-
-      - name: Uncrustify cache
-        uses: actions/cache@v6
-        id: bin-cache
-        with:
-          path: bin
-          key: ${{ runner.os }}-uncrustify-${{ env.UNCRUSTIFY_COMMIT }}
-
-      - name: Build uncrustify
-        if: steps.bin-cache.outputs.cache-hit != 'true'
-        run: |
-          git clone https://github.com/uncrustify/uncrustify.git uncrustify_git
-          cd uncrustify_git
-          git checkout $UNCRUSTIFY_COMMIT
-          cd ..
-          mkdir uncrustify_build
-          cd uncrustify_build
-          cmake ../uncrustify_git
-          cmake --build .
-          mkdir $GITHUB_WORKSPACE/bin
-          cp uncrustify $GITHUB_WORKSPACE/bin
-          cd ..
-
-      - name: Add bin to path
-        run: echo "$GITHUB_WORKSPACE/bin" >> $GITHUB_PATH
-
-      - name: Print uncrustify version
-        run: uncrustify -v
-
-      - name: Run uncrustify
-        run: ./scripts/uncrustify.sh
-
-      - name: Check diff
-        run: git diff --exit-code
-
-  coverage:
-    name: Code coverage
-    runs-on: ubuntu-22.04
-    needs: gatekeeper
-
-    env:
-      COVERAGE: 1
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          submodules: recursive
-
-      - name: Install packages
-        run: |
-          sudo apt update
-          sudo apt install libpulse-dev lcov libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-xinerama0 libxkbcommon-x11-0
-
-      - name: Install Qt
-        uses: jurplel/install-qt-action@v4
-        with:
-          cache: true
-          version: ${{ env.QT_VERSION }}
-          modules: ${{ env.QT_MODULES }}
-
-      - name: Build
-        run: |
-          mkdir build
-          cd build
-          cmake ../src -DCMAKE_BUILD_TYPE=Debug -DNIGHTLY=0 -DCOMMIT="$GITHUB_SHA" -DVERSION="9.9.9"
-          cmake --build . --config Debug --target sites
-          cmake --build . --config Debug
-
-      - name: Test
-        working-directory: src/lib
-        run: |
-          QT_QPA_PLATFORM=offscreen ../../build/lib/tests/lib-tests
-          QT_QPA_PLATFORM=offscreen ../../build/cli/tests/cli-tests
-
-      - name: Test GUI
-        working-directory: src/lib
-        run: |
-          QT_QPA_PLATFORM=offscreen ../../build/gui/tests/gui-tests
-          QT_QPA_PLATFORM=offscreen ../../build/crash-reporter/tests/crash-reporter-tests
-
-      - name: Test sites
-        working-directory: src/sites
-        run: |
-          npm ci
-          npm run test
-
-      - name: Capture coverage info
-        run: |
-          lcov --directory . --capture --output-file coverage.info
-          lcov --remove coverage.info '/usr/*' "${HOME}"'/.cache/*' --output-file coverage.info
-          lcov --list coverage.info
-
-      - name: Upload coverage results
-        uses: codecov/codecov-action@v7
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-
-  version:
-    name: Version
-    runs-on: ubuntu-latest
-    needs: gatekeeper
-
+  build:
+    name: Build (Arch Linux x86_64)
+    runs-on: ubuntu-24.04
+    container: archlinux:base-devel
     outputs:
-      version: ${{ steps.get-version.outputs.version }}
-      release: ${{ steps.get-version.outputs.release }}
-      nightly: ${{ steps.get-version.outputs.nightly }}
-
+      version: ${{ steps.version.outputs.version }}
     steps:
-      - name: Get version
-        id: get-version
-        run: |
-          if [[ "$IS_RELEASE" == 'true' ]]; then echo "version=${GITHUB_REF##*/}" >> $GITHUB_OUTPUT ; fi
-          if [[ "$IS_RELEASE" != 'true' ]]; then echo "version=nightly" >> $GITHUB_OUTPUT ; fi
-          echo "release=$([ "$IS_RELEASE" = "true" ] && echo "1" || echo "0")" >> $GITHUB_OUTPUT
-          echo "nightly=$([ "$IS_NIGHTLY" = "true" ] && echo "1" || echo "0")" >> $GITHUB_OUTPUT
-
-  linux:
-    name: Linux
-    runs-on: ubuntu-22.04
-    needs: version
-
-    env:
-      GRABBER_VERSION: ${{ needs.version.outputs.version }}
-      GRABBER_IS_NIGHTLY: ${{ needs.version.outputs.nightly }}
-      LINUXDEPLOYQT_VERSION: continuous
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          submodules: recursive
-
       - name: Install dependencies
         run: |
-          sudo apt update
-          sudo apt install libfuse2 libpulse-dev libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-xinerama0 libxcb-cursor0 libxkbcommon-x11-0 libgstreamer-plugins-base1.0-0 zsync xvfb
+          pacman -Syu --noconfirm --needed git cmake ninja gtk3 libsoup3 libxml2 sqlite gdk-pixbuf2 nlohmann-json \
+            quickjs-ng typescript gstreamer gst-plugins-base-libs libayatana-appindicator catch2 \
+            desktop-file-utils appstream
 
-      - name: Install Qt
-        uses: jurplel/install-qt-action@v4
-        with:
-          cache: true
-          version: ${{ env.QT_VERSION }}
-          modules: ${{ env.QT_MODULES }} ${{ env.IS_NIGHTLY && env.QT_MODULES_WEBENGINE || '' }}
-
-      - name: Vendor cache
-        uses: actions/cache@v6
-        id: vendor-cache
-        with:
-          path: vendor
-          key: ${{ runner.os }}-vendor-${{ hashFiles('.github/workflows/build.yml') }}
-
-      - name: Create vendor dir
-        if: steps.vendor-cache.outputs.cache-hit != 'true'
-        run: mkdir vendor
-
-      - name: Build QScintilla
-        if: steps.vendor-cache.outputs.cache-hit != 'true'
-        working-directory: vendor
-        run: |
-          curl -Lo "QScintilla.zip" "https://www.riverbankcomputing.com/static/Downloads/QScintilla/${QSCINTILLA_VERSION}/QScintilla_src-${QSCINTILLA_VERSION}.zip"
-          7z x "QScintilla.zip" -y
-          rm "QScintilla.zip"
-          cd "${QSCINTILLA_DIR}/src"
-          qmake qscintilla.pro
-          make
-
-      - name: Install QScintilla
-        working-directory: vendor
-        run: |
-          cd "${QSCINTILLA_DIR}/src"
-          make install
-
-      - name: Download linuxdeployqt
-        if: steps.vendor-cache.outputs.cache-hit != 'true'
-        working-directory: vendor
-        run: |
-          curl -Lo "linuxdeployqt.AppImage" "https://github.com/probonopd/linuxdeployqt/releases/download/${LINUXDEPLOYQT_VERSION}/linuxdeployqt-${LINUXDEPLOYQT_VERSION}-x86_64.AppImage"
-          chmod a+x linuxdeployqt.AppImage
-
-      # This driver causes an issue in linuxdeployqt because Mimer SQL is not installed but the plugin depends on it
-      - name: Delete unnecessary SQL driver
-        run: |
-          rm $QT_ROOT_DIR/plugins/sqldrivers/libqsqlmimer.so
-          rm $QT_ROOT_DIR/lib/cmake/Qt6Sql/Qt6QMimerSQLDriverPlugin*.cmake
-
-      - name: Build
-        run: |
-          mkdir build
-          cd build
-          cmake ../src -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DNIGHTLY=$GRABBER_IS_NIGHTLY -DCOMMIT="$GITHUB_SHA" -DVERSION="$GRABBER_VERSION"
-          cmake --build . --config Release --target sites
-          cmake --build . --config Release
-
-      - name: Test
-        working-directory: src/lib
-        run: |
-          QT_QPA_PLATFORM=offscreen ../../build/lib/tests/lib-tests
-          QT_QPA_PLATFORM=offscreen ../../build/cli/tests/cli-tests
-
-      - name: Test GUI
-        working-directory: src/lib
-        run: |
-          QT_QPA_PLATFORM=offscreen ../../build/gui/tests/gui-tests
-          QT_QPA_PLATFORM=offscreen ../../build/crash-reporter/tests/crash-reporter-tests
-
-      - name: Generate AppImage
-        run: |
-          ./scripts/package-appimage.sh
-          mv Grabber_*-x86_64.AppImage Grabber-x86_64.AppImage
-          mv Grabber_*-x86_64.AppImage.zsync Grabber-x86_64.AppImage.zsync
-
-      - name: Upload AppImage
-        uses: actions/upload-artifact@v7
-        with:
-          name: Grabber-x86_64.AppImage
-          path: Grabber-x86_64.AppImage
-          if-no-files-found: error
-
-      - name: Upload AppImage update information
-        uses: actions/upload-artifact@v7
-        with:
-          name: Grabber-x86_64.AppImage.zsync
-          path: Grabber-x86_64.AppImage.zsync
-          if-no-files-found: error
-
-      - name: Generate archive
-        run: ./scripts/package-linux.sh
-
-      - name: Upload archive
-        uses: actions/upload-artifact@v7
-        with:
-          name: Grabber.tar.gz
-          path: Grabber.tar.gz
-          if-no-files-found: error
-
-  macos:
-    name: macOS
-    runs-on: macos-14
-    needs: version
-
-    env:
-      GRABBER_VERSION: ${{ needs.version.outputs.version }}
-      GRABBER_IS_NIGHTLY: ${{ needs.version.outputs.nightly }}
-      OPENSSL_ROOT_DIR: /usr/local/opt/openssl@3
-      CMAKE_BUILD_PARALLEL_LEVEL: 3
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Install Qt
-        uses: jurplel/install-qt-action@v4
-        with:
-          cache: true
-          version: ${{ env.QT_VERSION }}
-          modules: ${{ env.QT_MODULES }} ${{ env.IS_NIGHTLY && env.QT_MODULES_WEBENGINE || '' }}
-
-
-      - name: Vendor cache
-        uses: actions/cache@v6
-        id: vendor-cache
-        with:
-          path: vendor
-          key: ${{ runner.os }}-vendor-${{ hashFiles('.github/workflows/build.yml') }}
-
-      - name: Create vendor dir
-        if: steps.vendor-cache.outputs.cache-hit != 'true'
-        run: mkdir vendor
-
-      - name: Build QScintilla
-        if: steps.vendor-cache.outputs.cache-hit != 'true'
-        working-directory: vendor
+      - name: Version
+        id: version
         run: |
-          curl -Lo "QScintilla.zip" "https://www.riverbankcomputing.com/static/Downloads/QScintilla/${QSCINTILLA_VERSION}/QScintilla_src-${QSCINTILLA_VERSION}.zip"
-          7z x "QScintilla.zip" -y
-          rm "QScintilla.zip"
-          cd "${QSCINTILLA_DIR}/src"
-          qmake qscintilla.pro
-          make
-
-      - name: Install QScintilla
-        working-directory: vendor
-        run: |
-          cd "${QSCINTILLA_DIR}/src"
-          make install
+          version=$(sed -n 's/^project(booru-grabber VERSION \([^ )]*\).*/\1/p' CMakeLists.txt)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ] && [ "${GITHUB_REF_NAME}" != "$version" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match the project version $version in CMakeLists.txt"
+            exit 1
+          fi
 
       - name: Build
         run: |
-          mkdir build
-          cd build
-          cmake ../src -DCMAKE_BUILD_TYPE=Release -DNIGHTLY=$GRABBER_IS_NIGHTLY -DCOMMIT="$GITHUB_SHA" -DVERSION="$GRABBER_VERSION" -DCMAKE_POLICY_VERSION_MINIMUM=3.5
-          cmake --build . --config Release --target sites
-          cmake --build . --config Release
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr \
+            -DBOORU_GRABBER_FETCH_QUICKJS=OFF
+          cmake --build build
 
       - name: Test
-        working-directory: src/lib
         run: |
-          ../../build/lib/tests/lib-tests
-          ../../build/cli/tests/cli-tests
+          ./build/bin/booru-grabber --version
+          ./build/bin/booru-grabber-cli --version
+          ./build/bin/booru-grabber-cli --profile "$RUNNER_TEMP/profile" --list-sites
+          ctest --test-dir build --output-on-failure
+          desktop-file-validate data/io.github.TheElevatedOne.BooruGrabber.desktop
+          appstreamcli validate --no-net --pedantic data/io.github.TheElevatedOne.BooruGrabber.metainfo.xml
 
-      - name: Test GUI
-        working-directory: src/lib
+      - name: Package
         run: |
-          ../../build/gui/tests/gui-tests
-          ../../build/crash-reporter/tests/crash-reporter-tests
+          packaging/make-release-tarball.sh build "${{ steps.version.outputs.version }}" x86_64
+          packaging/make-portable.sh "${{ steps.version.outputs.version }}" x86_64
 
-      - name: Generate package
-        run: ./scripts/package-mac.sh
-
-      - name: Upload package
-        uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v4
         with:
-          name: Grabber.dmg
-          path: Grabber.dmg
+          name: booru-grabber-linux-x86_64
+          path: dist/*
           if-no-files-found: error
 
-  windows:
-    name: Windows
-    runs-on: windows-2022
-    needs: version
-
-    env:
-      GRABBER_VERSION: ${{ needs.version.outputs.version }}
-      GRABBER_IS_NIGHTLY: ${{ needs.version.outputs.nightly }}
-      MYSQL_DRIVER_URL: https://github.com/thecodemonkey86/qt_mysql_driver/releases/download/qmysql_6.11.1/qsqlmysql.dll_Qt_SQL_driver_6.11.1_MSVC2022_64-bit.zip
-      OPENSSL_ROOT_DIR: ${{ github.workspace }}\vendor\OpenSSL
-      MYSQL_DRIVER_DIR: ${{ github.workspace }}\vendor\MySQL_driver
-      VCINSTALLDIR: C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC
-
+  appimage:
+    name: AppImage (Ubuntu 24.04 x86_64)
+    runs-on: ubuntu-24.04
     steps:
-      - name: Set environment
-        shell: bash
-        run: echo "BUILD_TYPE=$([ "$GRABBER_IS_NIGHTLY" = "1" ] && echo "Release" || echo "RelWithDebInfo")" >> $GITHUB_ENV
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake ninja-build g++ git curl file pkg-config \
+            libgtk-3-dev libsoup-3.0-dev libxml2-dev libsqlite3-dev nlohmann-json3-dev \
+            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libayatana-appindicator3-dev \
+            librsvg2-common nodejs npm
+          sudo npm install -g typescript@5.9.3
 
-      - name: Checkout
-        uses: actions/checkout@v7
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Install Qt
-        uses: jurplel/install-qt-action@v4
+      # quickjs-ng is not packaged on Ubuntu, so CMake downloads and builds it (BOORU_GRABBER_FETCH_QUICKJS)
+      - name: Build AppImage
+        run: |
+          version=$(sed -n 's/^project(booru-grabber VERSION \([^ )]*\).*/\1/p' CMakeLists.txt)
+          packaging/build-appimage.sh "$version" x86_64
+
+      - uses: actions/upload-artifact@v4
         with:
-          cache: true
-          version: ${{ env.QT_VERSION }}
-          modules: ${{ env.QT_MODULES }} ${{ env.IS_NIGHTLY && env.QT_MODULES_WEBENGINE || '' }}
-          aqtsource: git+https://github.com/miurahr/aqtinstall.git@8c3695d
+          name: booru-grabber-appimage-x86_64
+          path: dist/*
+          if-no-files-found: error
 
-      - name: Vendor cache
-        uses: actions/cache@v6
-        id: vendor-cache
+  release:
+    name: Publish release
+    needs: [build, appimage]
+    # A failed AppImage build does not hold back the tarballs
+    if: github.ref_type == 'tag' && !cancelled() && needs.build.result == 'success'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
         with:
-          path: vendor
-          key: ${{ runner.os }}-vendor-${{ hashFiles('.github/workflows/build.yml') }}
+          pattern: booru-grabber-*
+          path: dist
+          merge-multiple: true
 
-      - name: Create vendor dirs
-        if: steps.vendor-cache.outputs.cache-hit != 'true'
-        shell: cmd
-        run: mkdir vendor
-
-      - name: Build QScintilla
-        if: steps.vendor-cache.outputs.cache-hit != 'true'
-        working-directory: vendor
-        shell: cmd
+      - name: Release notes
         run: |
-          curl -Lo "QScintilla.zip" "https://www.riverbankcomputing.com/static/Downloads/QScintilla/%QSCINTILLA_VERSION%/QScintilla_src-%QSCINTILLA_VERSION%.zip"
-          7z x "QScintilla.zip" -y
-          rm "QScintilla.zip"
-          cd "%QSCINTILLA_DIR%\src"
-          call "%VCINSTALLDIR%\Auxiliary\Build\vcvarsall.bat" x64
-          qmake qscintilla.pro
-          nmake
+          # The lines between "## <tag>" and the next "## " heading.
+          awk -v v="$GITHUB_REF_NAME" '
+            /^## / { if (found) exit; if ($0 == "## " v) { found = 1; next } }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "::error::CHANGELOG.md has no \"## $GITHUB_REF_NAME\" section"
+            exit 1
+          fi
+          cat release-notes.md
 
-      - name: Install QScintilla
-        working-directory: vendor
-        shell: cmd
-        run: |
-          cd "%QSCINTILLA_DIR%\src"
-          call "%VCINSTALLDIR%\Auxiliary\Build\vcvarsall.bat" x64
-          nmake install
-
-      - name: Install OpenSSL
-        if: steps.vendor-cache.outputs.cache-hit != 'true'
-        working-directory: vendor
-        shell: cmd
-        run: |
-          curl -Lo OpenSSL.exe "https://github.com/Bionus/imgbrd-grabber/releases/download/sources-master/Win64OpenSSL-3_1_4.exe" --fail
-          OpenSSL.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /DIR="%OPENSSL_ROOT_DIR%"
-          rm OpenSSL.exe
-
-      - name: Download MySQL driver
-        if: steps.vendor-cache.outputs.cache-hit != 'true'
-        working-directory: vendor
-        shell: cmd
-        run: |
-          curl -Lo "mysql_driver.zip" "%MYSQL_DRIVER_URL%"
-          7z x "mysql_driver.zip" -y -o"%MYSQL_DRIVER_DIR%"
-          rm "mysql_driver.zip"
-
-      - name: Build
-        shell: cmd
-        run: |
-          mkdir build
-          cd build
-          cmake ..\src -G "Visual Studio 17 2022" -A "x64" ^
-            -DCMAKE_BUILD_TYPE=%BUILD_TYPE% ^
-            -DCMAKE_SYSTEM_VERSION=10.0.18362.0 ^
-            -DNIGHTLY=%GRABBER_IS_NIGHTLY% ^
-            -DCOMMIT="%GITHUB_SHA%" ^
-            -DVERSION="%GRABBER_VERSION%" ^
-            -DVERSION_PLATFORM="x64"
-          cmake --build . --config %BUILD_TYPE% --target sites
-          cmake --build . --config %BUILD_TYPE%
-
-      - name: Test
-        shell: cmd
-        working-directory: src/lib
-        run: |
-          ..\..\build\lib\tests\%BUILD_TYPE%\lib-tests.exe
-          ..\..\build\cli\tests\%BUILD_TYPE%\cli-tests.exe
+      - name: Publish
         env:
-          QTDIR: ${{ env.QT_ROOT_DIR }}
-          QT_PLUGIN_PATH: ${{ env.QT_ROOT_DIR }}\plugins
-
-      - name: Generate installer
-        shell: cmd
+          GH_TOKEN: ${{ github.token }}
         run: |
-          copy /Y "%MYSQL_DRIVER_DIR%\sqldrivers\*.dll" "%QT_ROOT_DIR%\plugins\sqldrivers"
-          iscc /Q ^
-            /DMyAppVersion="%GRABBER_VERSION%" ^
-            /DPlatformName="x64" ^
-            /DQtDir="%QT_ROOT_DIR%\bin" ^
-            /DOpenSSLDir="%OPENSSL_ROOT_DIR%" ^
-            /DMySQLDir="%MYSQL_DRIVER_DIR%" ^
-            scripts\windows-setup\setup.iss
-          mv scripts/windows-setup/Grabber_*.exe "Grabber_x64.exe
-
-      - name: Upload installer
-        uses: actions/upload-artifact@v7
-        with:
-          name: Grabber_x64.exe
-          path: Grabber_x64.exe
-          if-no-files-found: error
-
-      - name: Generate package
-        shell: cmd
-        run: scripts\package-windows.bat && mv Grabber.zip Grabber_x64.zip
-
-      - name: Upload package
-        uses: actions/upload-artifact@v7
-        with:
-          name: Grabber_x64.zip
-          path: Grabber_x64.zip
-          if-no-files-found: error
-
-      - name: Generate symbols ZIP
-        if: ${{ github.event_name != 'pull_request' && startsWith(github.ref, 'refs/tags/v') }}
-        shell: cmd
-        run: 7z a "Grabber_x64_symbols.zip" ".\build\gui\Grabber.pdb" ".\build\cli\Grabber-cli.pdb"
-
-      - name: Upload symbols
-        uses: actions/upload-artifact@v7
-        if: ${{ github.event_name != 'pull_request' && startsWith(github.ref, 'refs/tags/v') }}
-        with:
-          name: Grabber_x64_symbols.zip
-          path: Grabber_x64_symbols.zip
-          if-no-files-found: error
-
-  android:
-    name: Android
-    runs-on: ubuntu-latest
-    needs: version
-
-    env:
-      QT_VERSION: 6.10.3
-      GRABBER_VERSION: ${{ needs.version.outputs.version }}
-      GRABBER_IS_NIGHTLY: ${{ needs.version.outputs.nightly }}
-
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v7
-      with:
-        submodules: recursive
-
-    - name: Install packages
-      run: |
-        sudo apt update
-        sudo apt install libpulse-dev
-
-    - name: Setup Java
-      uses: actions/setup-java@v5
-      with:
-        distribution: temurin
-        java-version: 17
-        cache: gradle
-        cache-dependency-path: |
-          **/*.gradle*
-          **/gradle-wrapper.properties
-
-    - name: Setup Android Environment
-      uses: android-actions/setup-android@v4
-      with:
-        cmdline-tools-version: 12266719
-        packages: 'platform-tools platforms;android-35 build-tools;35.0.0 ndk;${{ env.ANDROID_NDK_VERSION }}'
-        log-accepted-android-sdk-licenses: false
-
-    - name: Install Qt (host)
-      uses: jurplel/install-qt-action@v4
-      with:
-        cache: true
-        version: ${{ env.QT_VERSION }}
-        modules: ${{ env.QT_MODULES }}
-        host: linux
-        target: desktop
-        arch: linux_gcc_64
-
-    - name: Install Qt (android)
-      uses: jurplel/install-qt-action@v4
-      with:
-        cache: true
-        version: ${{ env.QT_VERSION }}
-        modules: ${{ env.QT_MODULES }}
-        host: linux
-        target: android
-        arch: android_armv7
-
-    - name: Install Qt (android ARM64)
-      uses: jurplel/install-qt-action@v4
-      with:
-        cache: true
-        version: ${{ env.QT_VERSION }}
-        modules: ${{ env.QT_MODULES }}
-        host: linux
-        target: android
-        arch: android_arm64_v8a
-
-    - name: Download Android OpenSSL libraries
-      working-directory: src/cmake
-      run: git clone https://github.com/KDAB/android_openssl.git
-
-    - name: Restore keystore file
-      run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > release.jks
-
-    - name: Build
-      env:
-        QT_ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/release.jks
-        QT_ANDROID_KEYSTORE_ALIAS: release
-        QT_ANDROID_KEYSTORE_STORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-      run: |
-        mkdir build
-        cd build
-        ${{ env.QT_ROOT_DIR }}/bin/qt-cmake ../src \
-          -DCMAKE_TOOLCHAIN_FILE:FILEPATH="${{ env.QT_ROOT_DIR }}/lib/cmake/Qt6/qt.toolchain.cmake" \
-          -DNIGHTLY=$GRABBER_IS_NIGHTLY -DCOMMIT="$GITHUB_SHA" -DVERSION="$GRABBER_VERSION" \
-          -DCMAKE_BUILD_TYPE:STRING=Release \
-          -DCMAKE_GENERATOR:STRING=Ninja \
-          -DCMAKE_WARN_DEPRECATED=FALSE \
-          -DANDROID_SDK_ROOT="${ANDROID_HOME}" \
-          -DANDROID_NDK_ROOT="${ANDROID_HOME}/ndk/${ANDROID_NDK_VERSION}" \
-          -DQT_ANDROID_BUILD_ALL_ABIS=OFF \
-          -DQT_ANDROID_ABIS:STRING="armeabi-v7a;arm64-v8a" \
-          -DQT_HOST_PATH:PATH="${{ env.QT_ROOT_DIR }}/../gcc_64"
-        cmake --build . --config Release --target gui-qml_make_apk
-
-    - name: Generate package
-      run: |
-        mv build/gui-qml/android-build/build/outputs/apk/debug/android-build-debug.apk Grabber.apk 2> /dev/null || true
-        mv build/gui-qml/android-build/build/outputs/apk/release/android-build-release-unsigned.apk Grabber.apk 2> /dev/null || true
-        mv build/gui-qml/android-build/build/outputs/apk/release/android-build-release-signed.apk Grabber.apk 2> /dev/null || true
-
-    - name: Upload package
-      uses: actions/upload-artifact@v7
-      with:
-        name: Grabber.apk
-        path: Grabber.apk
-        if-no-files-found: error
-
-  github:
-    name: Upload to GitHub releases
-    runs-on: ubuntu-latest
-    needs: [version, linux, macos, windows, android]
-
-    if: github.repository == 'Bionus/imgbrd-grabber' && github.event_name == 'push' && (needs.version.outputs.release == '1' || github.ref == 'refs/heads/develop')
-
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      VERSION: ${{ needs.version.outputs.version }}
-
-    steps:
-      - name: Download artifact (Linux AppImage)
-        uses: actions/download-artifact@v8
-        with:
-          name: Grabber-x86_64.AppImage
-
-      - name: Download artifact (Linux AppImage update information)
-        uses: actions/download-artifact@v8
-        with:
-          name: Grabber-x86_64.AppImage.zsync
-
-      - name: Download artifact (Linux archive)
-        uses: actions/download-artifact@v8
-        with:
-          name: Grabber.tar.gz
-
-      - name: Download artifact (macOS)
-        uses: actions/download-artifact@v8
-        with:
-          name: Grabber.dmg
-
-      - name: Download artifact (Windows 64-bit installer)
-        uses: actions/download-artifact@v8
-        with:
-          name: Grabber_x64.exe
-
-      - name: Download artifact (Windows 64-bit archive)
-        uses: actions/download-artifact@v8
-        with:
-          name: Grabber_x64.zip
-
-      - name: Download artifact (Windows 64-bit symbols)
-        uses: actions/download-artifact@v8
-        if: needs.version.outputs.release == '1'
-        with:
-          name: Grabber_x64_symbols.zip
-
-      - name: Download artifact (Android)
-        uses: actions/download-artifact@v8
-        with:
-          name: Grabber.apk
-
-      - name: Rename artifacts
-        run: |
-          mv Grabber-x86_64.AppImage Grabber_${VERSION}-x86_64.AppImage
-          mv Grabber-x86_64.AppImage.zsync Grabber_${VERSION}-x86_64.AppImage.zsync
-          mv Grabber.tar.gz Grabber_${VERSION}.tar.gz
-          mv Grabber.dmg Grabber_${VERSION}.dmg
-          mv Grabber_x64.exe Grabber_${VERSION}_x64.exe
-          mv Grabber_x64.zip Grabber_${VERSION}_x64.zip
-          mv Grabber.apk Grabber_${VERSION}.apk
-
-      - name: Rename symbols artifacts
-        if: needs.version.outputs.release == '1'
-        run: |
-          mv Grabber_x64_symbols.zip Grabber_${VERSION}_x64_symbols.zip
-
-      - name: Get date for Nightly body
-        id: date
-        if: needs.version.outputs.nightly == '1'
-        run: echo "date=$(date +'%Y-%m-%d %H:%M:%S %Z')" >> $GITHUB_OUTPUT
-
-      - name: Nightly
-        uses: ncipollo/release-action@v1
-        if: needs.version.outputs.nightly == '1'
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          tag: nightly
-          name: Nightly
-          allowUpdates: true
-          draft: false
-          prerelease: true
-          artifacts: Grabber_*
-          body: |
-            Nightly automated builds from the develop branch.
-            Automatically uploaded by GitHub actions, **use at your own risk**!
-
-            **Head:** ${{ github.sha }}
-            **Date:** ${{ steps.date.outputs.date }}
-
-      - name: Release
-        uses: ncipollo/release-action@v1
-        if: needs.version.outputs.release == '1'
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          allowUpdates: true
-          draft: true
-          artifacts: Grabber_*
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist/* --title "Booru Grabber $GITHUB_REF_NAME" --notes-file release-notes.md
+          fi

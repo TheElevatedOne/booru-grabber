@@ -1,9 +1,0 @@
-{% extends "base.html" %}
-
-{% block extrahead %}
-    {% if config.theme.grabber.google_site_verification %}
-        <meta name="google-site-verification" content="{{ config.theme.grabber.google_site_verification }}" />
-    {% endif %}
-
-    {{ super() }}
-{% endblock %}

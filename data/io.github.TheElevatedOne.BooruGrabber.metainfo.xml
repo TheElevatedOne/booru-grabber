@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.TheElevatedOne.BooruGrabber</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>Apache-2.0</project_license>
+  <name>Booru Grabber</name>
+  <summary>Search and download images from boorus and imageboards</summary>
+  <description>
+    <p>
+      Booru Grabber searches imageboards and boorus (Danbooru, Gelbooru, Moebooru, e621, Philomena,
+      Pixiv, Zerochan and more), shows the results in tabs and downloads them with filenames built from
+      the image tags, for example %artist%/%copyright%/%md5%.%ext%.
+    </p>
+    <p>It is a GTK 3 rewrite of Grabber by Bionus that keeps its site sources and settings format.</p>
+    <ul>
+      <li>Searches several sites at once, with tag auto-completion, blacklist and post-filters</li>
+      <li>Batch downloads with resume, duplicate detection by MD5 and extension guessing</li>
+      <li>Favorites and monitors that notify about and download new images</li>
+      <li>Image viewer with animations and video playback</li>
+      <li>Command line interface for scripts</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">io.github.TheElevatedOne.BooruGrabber.desktop</launchable>
+  <url type="homepage">https://github.com/TheElevatedOne/booru-grabber</url>
+  <url type="bugtracker">https://github.com/TheElevatedOne/booru-grabber/issues</url>
+  <developer id="io.github.theelevatedone">
+    <name>TheElevatedOne</name>
+  </developer>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/TheElevatedOne/booru-grabber/master/docs/screenshots/search.png</image>
+      <caption>Search results with the tag sidebar</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/TheElevatedOne/booru-grabber/master/docs/screenshots/viewer.png</image>
+      <caption>Image viewer with tags and details</caption>
+    </screenshot>
+  </screenshots>
+  <content_rating type="oars-1.1">
+    <content_attribute id="sex-nudity">intense</content_attribute>
+  </content_rating>
+  <provides>
+    <binary>booru-grabber</binary>
+    <binary>booru-grabber-cli</binary>
+  </provides>
+  <releases>
+    <release version="1.0.0" date="2026-11-15">
+      <description>
+        <p>First release of the GTK 3 rewrite of Grabber.</p>
+      </description>
+    </release>
+  </releases>
+</component>

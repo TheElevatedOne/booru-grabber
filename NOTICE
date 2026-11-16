@@ -1,3 +1,11 @@
+Booru Grabber
+Copyright 2026 TheElevatedOne
+
+Booru Grabber is a C++ / GTK 3 rewrite of Grabber (https://github.com/Bionus/imgbrd-grabber).
+The site sources in sites/, the icons and images in data/, data/words.txt and the HTML entity table in
+vendor/html-entities/ come from Grabber and were modified for this project; the rest of the code is new.
+
+Grabber
 Copyright 2011-2015 Bionus
 
 Licensed under the Apache License, Version 2.0 (the "License");

@@ -1,0 +1,10 @@
+#pragma once
+#define BG_VERSION "@PROJECT_VERSION@"
+#define BG_HOMEPAGE "@PROJECT_HOMEPAGE_URL@"
+#define BG_APP_ID "io.github.TheElevatedOne.BooruGrabber"
+#define BG_APP_NAME "Booru Grabber"
+// Compiled-in fallbacks; the binaries prefer paths relative to their own location.
+#define BG_INSTALL_DATADIR "@BG_FULL_DATADIR@/booru-grabber"
+#define BG_INSTALL_SYSCONFDIR "@BG_FULL_SYSCONFDIR@/booru-grabber"
+#define BG_RELATIVE_DATADIR "@BG_DATADIR@/booru-grabber"
+#define BG_RELATIVE_BINDIR "@BG_BINDIR@"

@@ -2,7 +2,7 @@ version: 2
 
 updates:
   - package-ecosystem: "github-actions"
-    target-branch: "develop"
+    target-branch: "master"
     directory: "/"
     schedule:
       interval: "weekly"

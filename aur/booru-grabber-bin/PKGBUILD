@@ -1,0 +1,35 @@
+# Maintainer: TheElevatedOne
+
+pkgname=booru-grabber-bin
+_pkgname=booru-grabber
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='Imageboard/booru downloader with powerful file naming, GTK 3 rewrite of Grabber (prebuilt)'
+arch=('x86_64')
+url='https://github.com/TheElevatedOne/booru-grabber'
+license=('Apache-2.0')
+depends=('gcc-libs' 'glibc' 'glib2' 'gtk3' 'cairo' 'pango' 'gdk-pixbuf2' 'libsoup3' 'libxml2' 'sqlite'
+         'quickjs-ng' 'gstreamer' 'gst-plugins-base-libs' 'libayatana-appindicator')
+optdepends=('gst-plugins-good: WebM (VP8/VP9) video playback'
+            'gst-libav: MP4 (H.264) video playback'
+            'perl-image-exiftool: write metadata into downloaded files'
+            'ffmpeg: WebM to MP4 and ugoira conversion'
+            'imagemagick: image format conversion')
+provides=("$_pkgname=$pkgver" 'imgbrd-grabber')
+conflicts=("$_pkgname")
+backup=('etc/booru-grabber/settings.ini')
+# The release binaries are built on Arch Linux by the GitHub workflow and already stripped.
+options=('!debug' '!strip')
+# Release tags have no "v" prefix. Run updpkgsums once the release exists.
+source_x86_64=("$url/releases/download/$pkgver/$_pkgname-$pkgver-linux-x86_64.tar.gz")
+sha256sums_x86_64=('SKIP')
+
+package() {
+  cd "$_pkgname-$pkgver-linux-$CARCH"
+  install -Dm755 bin/booru-grabber bin/booru-grabber-cli -t "$pkgdir/usr/bin"
+  cp -a lib "$pkgdir/usr/"
+  find share -type f -exec install -Dm644 {} "$pkgdir/usr/{}" \;
+  install -Dm644 etc/booru-grabber/settings.ini -t "$pkgdir/etc/booru-grabber"
+  install -Dm644 README.md CHANGELOG.md -t "$pkgdir/usr/share/doc/$_pkgname"
+  install -Dm644 LICENSE NOTICE -t "$pkgdir/usr/share/licenses/$pkgname"
+}

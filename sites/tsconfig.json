@@ -1,0 +1,20 @@
+{
+    "compilerOptions": {
+        "declaration": false,
+        "module": "es2020",
+        "moduleResolution": "bundler",
+        "noImplicitReturns": true,
+        "noUnusedLocals": true,
+        "strict": true,
+        "target": "es2020",
+        "types": []
+    },
+    "include": [
+        "**/*.ts"
+    ],
+    "exclude": [
+        "node_modules",
+        "test-*.ts",
+        "**/*.spec.ts"
+    ]
+}

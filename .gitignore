@@ -1,133 +1,16 @@
-# Grabber
-*.qm
-src/cmake/android_openssl/
-src/e2e/viewer/result.json
-src/sites/helper.js
-src/sites/*/model.js
-src/sites/*/*/cookies.txt
-src/sites/*/*/settings.ini
-src/sites/*/*/tags.txt
-src/sites/*/*/tags.db
-src/lib/tests/resources/tags.txt
-src/lib/tests/resources/tags.db
-src/lib/tests/resources/md5s.txt
-src/lib/tests/resources/settings.ini
-src/lib/tests/resources/settings.ini.*
-src/lib/tests/resources/*.txt
-src/lib/tests/resources/favorites.*
-src/lib/tests/resources/thumbs/
-src/lib/tests/resources/tmp/
-src/lib/tests/resources/sites/
-/test_*
-target_wrapper.bat
-symbols/
-*.lock
-*.lnk
-*.exe
-*.obj
-*.pdb
-*.res
-*.igl
-*.log
-*.exe.embed.manifest
-*.lib
-*.sql
-*.zip
-build*/
-debug/
-{gui,cli}/release/
-cache/
-release/
-release.jks
-coverage/
-
-
-# NPM
-node_modules/
-
-
-# CMake
-CMakeLists.txt.user*
-CMakeCache.txt
-CMakeFiles
-CMakeScripts
-Testing
-Makefile
-cmake_install.cmake
-install_manifest.txt
+/build*/
+/dist/
+/.cache/
 compile_commands.json
-CTestTestfile.cmake
-
-
-# Visual Studio
-.vs/
-*.sln
-*.vcxproj
-*.vcxproj.filters
-*.vcxproj.user
-Grabber.VC.*
-win32/
-CMakeSettings.json
-
-
-# CLion
-.idea/
-
-
-# C++ objects and libs
-*.slo
-*.lo
-*.o
-*.a
-*.la
-*.lai
-*.so
-*.dll
-*.dylib
-
-
-# Qt-es
-/.qmake.cache
-/.qmake.stash
-*.pro.user
-*.pro.user.*
-*.qbs.user
-*.qbs.user.*
-*.moc
-moc_*.cpp
-qrc_*.cpp
-ui_*.h
-Makefile*
-*-build-*
-
-
-# QtCreator
-*.autosave
-
-
-# QtCtreator Qml
-*.qmlproject.user
-*.qmlproject.user.*
-
-
-# VS Code
-.vscode/
-
-# Vim
-## Swap
-[._]*.s[a-v][a-z]
-[._]*.sw[a-p]
-[._]s[a-rt-v][a-z]
-[._]ss[a-gi-z]
-[._]sw[a-p]
-
-## Session
-Session.vim
-Sessionx.vim
-
-## Temporary
-.netrwhist
-*~
-
-## Persistent undo
-[._]*.un~
+# npm (only needed when tsc is not installed)
+node_modules/
+/sites/**/*.js
+!/sites/jest.config.js
+# makepkg output
+/aur/*/src/
+/aur/*/pkg/
+/aur/*/booru-grabber/
+/aur/*/*.tar.*
+/aur/*/*.log
+# AppImage tools downloaded by packaging/build-appimage.sh
+/packaging/.tools/

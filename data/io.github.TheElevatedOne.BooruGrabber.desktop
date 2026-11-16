@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Booru Grabber
+GenericName=Booru downloader
+Comment=Search and download images from boorus and imageboards with powerful file naming
+Exec=booru-grabber %U
+Icon=booru-grabber
+Terminal=false
+Categories=Network;FileTransfer;GTK;
+Keywords=booru;danbooru;gelbooru;imageboard;downloader;grabber;
+MimeType=x-scheme-handler/pixiv;
+StartupNotify=true
+StartupWMClass=booru-grabber

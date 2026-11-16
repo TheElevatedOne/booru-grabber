@@ -1,13 +1,3 @@
-[submodule "cmake/qt-android-cmake"]
-	path = src/cmake/qt-android-cmake
-	url = https://github.com/LaurentGomila/qt-android-cmake.git
-[submodule "cmake/cotire"]
-	path = src/cmake/cotire
-	url = https://github.com/sakra/cotire.git
-[submodule "tests/src/vendor/catch"]
-	path = src/tests/vendor/catch
-	url = https://github.com/catchorg/Catch2.git
-	branch = devel
 [submodule "lib/vendor/lexbor"]
-	path = src/lib/vendor/lexbor
+	path = vendor/lexbor
 	url = https://github.com/lexbor/lexbor.git
